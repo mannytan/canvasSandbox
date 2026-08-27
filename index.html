@@ -49,8 +49,9 @@
 <div id="controls">
   <button id="regen">New Polygon</button>
   <label>Corner radius <span id="radiusValue">18</span>px
-    <input type="range" id="radius" min="0" max="60" value="18">
+    <input type="range" id="radius" min="0" max="100" value="18">
   </label>
+  <label><input type="checkbox" id="showPoints" checked> Show points</label>
 </div>
 <script>
   const canvas = document.getElementById('canvas');
@@ -167,15 +168,13 @@
     ctx.fillStyle = 'rgba(80, 160, 255, 0.25)';
     ctx.fill();
 
-    ctx.strokeStyle = '#5aa0ff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    for (const p of currentPoints) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-      ctx.fill();
+    if (showPointsInput.checked) {
+      ctx.fillStyle = '#ffffff';
+      for (const p of currentPoints) {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -186,12 +185,14 @@
 
   const radiusInput = document.getElementById('radius');
   const radiusValue = document.getElementById('radiusValue');
+  const showPointsInput = document.getElementById('showPoints');
 
   document.getElementById('regen').addEventListener('click', drawPolygon);
   radiusInput.addEventListener('input', () => {
     radiusValue.textContent = radiusInput.value;
     render();
   });
+  showPointsInput.addEventListener('change', render);
 
   // Dragging vertices: hit-test against currentPoints, then move
   // whichever one is grabbed and re-render so the arcs update live.
