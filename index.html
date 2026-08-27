@@ -51,8 +51,8 @@
   <label>Points <span id="pointCountValue">10</span>
     <input type="range" id="pointCount" min="3" max="20" value="10">
   </label>
-  <label>Corner radius <span id="radiusValue">30</span>%
-    <input type="range" id="radius" min="0" max="100" value="30">
+  <label>Corner radius <span id="radiusValue">18</span>px
+    <input type="range" id="radius" min="0" max="1000" value="18">
   </label>
   <label><input type="checkbox" id="showPoints" checked> Show points</label>
   <label><input type="checkbox" id="snapToGrid"> Snap to grid</label>
@@ -128,41 +128,42 @@
 
   const EPS = 1e-6;
 
-  // The largest radius that still fits at this corner, measured against
-  // the incoming edge (prev → curr) only: the arc's tangent point on
-  // that edge would otherwise pass its midpoint. Since tangent distance
-  // is radius / tan(angle/2), that cap depends on the interior angle at
-  // the corner (prev–curr–next) as well as the previous edge's own
-  // length — a plain "half the edge" limit only holds at exactly 90°.
-  function maxCornerRadius(prev, curr, next) {
+  // Caps a corner's requested radius (in px) so its arc's tangent points
+  // never pass the midpoint of either adjacent edge. Since tangent
+  // distance is radius / tan(angle/2), the cap itself depends on the
+  // interior angle at the corner (prev–curr–next) — a plain radius clamp
+  // only works at exactly 90° and lets sharper or wider corners overshoot.
+  function clampCornerRadius(prev, curr, next, wanted) {
     const v1x = prev.x - curr.x, v1y = prev.y - curr.y;
     const v2x = next.x - curr.x, v2y = next.y - curr.y;
-    const d1 = Math.hypot(v1x, v1y); // previous edge length
+    const d1 = Math.hypot(v1x, v1y);
     const d2 = Math.hypot(v2x, v2y);
+    let r = Math.max(0, wanted);
     if (d1 <= EPS || d2 <= EPS) return 0;
 
     const cosA = Math.min(1, Math.max(-1, (v1x * v2x + v1y * v2y) / (d1 * d2)));
-    if (cosA <= -1 + EPS) return Infinity; // ~180°: virtually no bend, unlimited
+    if (cosA <= -1 + EPS) return r; // ~180°: virtually no bend, no angle-based cap needed
 
     const sinA = Math.abs(v1x * v2y - v1y * v2x) / (d1 * d2);
     const tanHalfAngle = sinA / (1 + cosA);
-    const maxTangentDist = d1 / 2;
-    return tanHalfAngle * maxTangentDist;
+    const maxTangentDist = Math.min(d1, d2) / 2;
+    return Math.min(r, tanHalfAngle * maxTangentDist);
   }
 
-  // Traces a polygon's outline with each corner rounded to `percent`
-  // (0-1) of the largest radius that corner can geometrically hold, each
-  // further scaled by that vertex's own weight in `radiusFactors`. Built
-  // on ctx.arcTo, which draws an arc tangent to the incoming and outgoing
-  // edges at a given vertex.
+  // Traces a polygon's outline with each corner rounded to its own
+  // radius (in px). `radii` is either a single number applied to every
+  // vertex, or an array with one radius per vertex (radii[i] rounds
+  // points[i]). Built on ctx.arcTo, which draws an arc tangent to the
+  // incoming and outgoing edges at a given vertex.
   //
   // arcTo needs the path's current point to sit exactly at the arc's
-  // true tangent distance from the corner, which depends on the corner's
-  // angle (see maxCornerRadius above). Rather than compute that by hand,
-  // start on a point guaranteed to already be on an edge (a midpoint) and
-  // let each arcTo figure out its own tangent points; arcTo draws the
-  // straight run-up to them automatically.
-  function tracePolygonPath(ctx, points, percent, radiusFactors) {
+  // true tangent distance from the corner — and that distance is
+  // radius / tan(interior angle / 2), not the radius itself (they only
+  // match at a 90° corner). Rather than compute that angle-dependent
+  // offset by hand, start on a point guaranteed to already be on an
+  // edge (a midpoint) and let each arcTo figure out its own tangent
+  // points; arcTo draws the straight run-up to them automatically.
+  function tracePolygonPath(ctx, points, radii) {
     const n = points.length;
     const startX = (points[n - 1].x + points[0].x) / 2;
     const startY = (points[n - 1].y + points[0].y) / 2;
@@ -174,9 +175,8 @@
       const prev = points[(i - 1 + n) % n];
       const curr = points[i];
       const next = points[(i + 1) % n];
-      const factor = Array.isArray(radiusFactors) ? radiusFactors[i] : 1;
-      const maxR = maxCornerRadius(prev, curr, next);
-      const r = Number.isFinite(maxR) ? maxR * percent * factor : 0;
+      const wanted = Array.isArray(radii) ? radii[i] : radii;
+      const r = clampCornerRadius(prev, curr, next, wanted);
 
       ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
     }
@@ -192,10 +192,10 @@
 
     if (snapToGridInput.checked) drawGrid();
 
-    const percent = Number(radiusInput.value) / 100;
-    const radiusFactors = currentPoints.map(p => p.radiusFactor);
+    const maxRadius = Number(radiusInput.value);
+    const radii = currentPoints.map(p => p.radiusFactor * maxRadius);
 
-    tracePolygonPath(ctx, currentPoints, percent, radiusFactors);
+    tracePolygonPath(ctx, currentPoints, radii);
 
     ctx.fillStyle = 'rgba(80, 160, 255, 0.25)';
     ctx.fill();
