@@ -55,6 +55,7 @@
     <input type="range" id="radius" min="0" max="100" value="18">
   </label>
   <label><input type="checkbox" id="showPoints" checked> Show points</label>
+  <label><input type="checkbox" id="snapToGrid"> Snap to grid</label>
 </div>
 <script>
   const canvas = document.getElementById('canvas');
@@ -70,6 +71,30 @@
   });
   resize();
 
+  const GRID_STEP = 40;
+
+  function drawGrid() {
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = 0; x < canvas.width; x += GRID_STEP) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, canvas.height);
+    }
+    for (let y = 0; y < canvas.height; y += GRID_STEP) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(canvas.width, y + 0.5);
+    }
+    ctx.stroke();
+  }
+
+  function snapToGrid(p) {
+    return {
+      x: Math.round(p.x / GRID_STEP) * GRID_STEP,
+      y: Math.round(p.y / GRID_STEP) * GRID_STEP
+    };
+  }
+
   // Generate N random points, then sort them by angle around their
   // centroid. Connecting points in angular order around a common center
   // guarantees a simple (non-self-intersecting) polygon.
@@ -77,10 +102,12 @@
     const margin = Math.min(canvas.width, canvas.height) * 0.12;
     const points = [];
     for (let i = 0; i < n; i++) {
-      points.push({
+      let p = {
         x: margin + Math.random() * (canvas.width - 2 * margin),
         y: margin + Math.random() * (canvas.height - 2 * margin)
-      });
+      };
+      if (snapToGridInput.checked) p = snapToGrid(p);
+      points.push(p);
     }
 
     const cx = points.reduce((sum, p) => sum + p.x, 0) / n;
@@ -163,6 +190,8 @@
   function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    if (snapToGridInput.checked) drawGrid();
+
     const maxRadius = Number(radiusInput.value);
     const radii = currentPoints.map(p => p.radiusFactor * maxRadius);
 
@@ -191,6 +220,7 @@
   const showPointsInput = document.getElementById('showPoints');
   const pointCountInput = document.getElementById('pointCount');
   const pointCountValue = document.getElementById('pointCountValue');
+  const snapToGridInput = document.getElementById('snapToGrid');
 
   document.getElementById('regen').addEventListener('click', drawPolygon);
   radiusInput.addEventListener('input', () => {
@@ -201,6 +231,12 @@
   pointCountInput.addEventListener('input', () => {
     pointCountValue.textContent = pointCountInput.value;
     drawPolygon();
+  });
+  snapToGridInput.addEventListener('change', () => {
+    if (snapToGridInput.checked) {
+      currentPoints = currentPoints.map(p => ({ ...snapToGrid(p), radiusFactor: p.radiusFactor }));
+    }
+    render();
   });
 
   // Dragging vertices: hit-test against currentPoints, then move
@@ -233,8 +269,13 @@
   canvas.addEventListener('pointermove', (evt) => {
     const pos = pointFromEvent(evt);
     if (draggingPoint) {
-      draggingPoint.x = Math.min(Math.max(pos.x, 0), canvas.width);
-      draggingPoint.y = Math.min(Math.max(pos.y, 0), canvas.height);
+      let next = {
+        x: Math.min(Math.max(pos.x, 0), canvas.width),
+        y: Math.min(Math.max(pos.y, 0), canvas.height)
+      };
+      if (snapToGridInput.checked) next = snapToGrid(next);
+      draggingPoint.x = next.x;
+      draggingPoint.y = next.y;
       render();
     } else {
       canvas.style.cursor = findPointAt(pos) ? 'grab' : 'default';
