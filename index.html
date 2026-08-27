@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Random Polygon Canvas</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #111;
+  }
+  canvas {
+    display: block;
+  }
+  #regen {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    padding: 10px 16px;
+    font-family: sans-serif;
+    font-size: 14px;
+    background: #222;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  #regen:hover {
+    background: #333;
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<button id="regen">New Polygon</button>
+<script>
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', () => {
+    resize();
+    drawPolygon();
+  });
+  resize();
+
+  // Generate N random points, then sort them by angle around their
+  // centroid. Connecting points in angular order around a common center
+  // guarantees a simple (non-self-intersecting) polygon.
+  function generatePolygon(n) {
+    const margin = Math.min(canvas.width, canvas.height) * 0.12;
+    const points = [];
+    for (let i = 0; i < n; i++) {
+      points.push({
+        x: margin + Math.random() * (canvas.width - 2 * margin),
+        y: margin + Math.random() * (canvas.height - 2 * margin)
+      });
+    }
+
+    const cx = points.reduce((sum, p) => sum + p.x, 0) / n;
+    const cy = points.reduce((sum, p) => sum + p.y, 0) / n;
+
+    points.sort((a, b) => {
+      return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
+    });
+
+    return points;
+  }
+
+  function drawPolygon() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const points = generatePolygon(10);
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      ctx.lineTo(points[i].x, points[i].y);
+    }
+    ctx.closePath();
+
+    ctx.fillStyle = 'rgba(80, 160, 255, 0.25)';
+    ctx.fill();
+
+    ctx.strokeStyle = '#5aa0ff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    for (const p of points) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  document.getElementById('regen').addEventListener('click', drawPolygon);
+
+  drawPolygon();
+</script>
+</body>
+</html>
