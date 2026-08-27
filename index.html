@@ -48,6 +48,9 @@
 <canvas id="canvas"></canvas>
 <div id="controls">
   <button id="regen">New Polygon</button>
+  <label>Points <span id="pointCountValue">10</span>
+    <input type="range" id="pointCount" min="3" max="20" value="10">
+  </label>
   <label>Corner radius <span id="radiusValue">18</span>px
     <input type="range" id="radius" min="0" max="100" value="18">
   </label>
@@ -179,13 +182,15 @@
   }
 
   function drawPolygon() {
-    currentPoints = generatePolygon(10);
+    currentPoints = generatePolygon(Number(pointCountInput.value));
     render();
   }
 
   const radiusInput = document.getElementById('radius');
   const radiusValue = document.getElementById('radiusValue');
   const showPointsInput = document.getElementById('showPoints');
+  const pointCountInput = document.getElementById('pointCount');
+  const pointCountValue = document.getElementById('pointCountValue');
 
   document.getElementById('regen').addEventListener('click', drawPolygon);
   radiusInput.addEventListener('input', () => {
@@ -193,6 +198,10 @@
     render();
   });
   showPointsInput.addEventListener('change', render);
+  pointCountInput.addEventListener('input', () => {
+    pointCountValue.textContent = pointCountInput.value;
+    drawPolygon();
+  });
 
   // Dragging vertices: hit-test against currentPoints, then move
   // whichever one is grabbed and re-render so the arcs update live.
