@@ -16,9 +16,6 @@
     display: block;
   }
   #regen {
-    position: fixed;
-    top: 16px;
-    left: 16px;
     padding: 10px 16px;
     font-family: sans-serif;
     font-size: 14px;
@@ -31,11 +28,30 @@
   #regen:hover {
     background: #333;
   }
+  #controls {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: sans-serif;
+    font-size: 13px;
+    color: #eee;
+  }
+  #radius {
+    width: 140px;
+  }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
-<button id="regen">New Polygon</button>
+<div id="controls">
+  <button id="regen">New Polygon</button>
+  <label>Corner radius <span id="radiusValue">18</span>px
+    <input type="range" id="radius" min="0" max="60" value="18">
+  </label>
+</div>
 <script>
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
@@ -70,20 +86,55 @@
       return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
     });
 
+    // Each vertex gets its own random weight so corners round by
+    // different amounts once scaled by the corner-radius slider.
+    for (const p of points) {
+      p.radiusFactor = 0.4 + Math.random() * 0.6;
+    }
+
     return points;
   }
 
-  function drawPolygon() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const points = generatePolygon(10);
-
+  // Traces a polygon's outline with each corner rounded to its own
+  // radius. `radii` is either a single number applied to every vertex,
+  // or an array with one radius per vertex (radii[i] rounds points[i]).
+  // Built on ctx.arcTo, which draws an arc tangent to the incoming and
+  // outgoing edges at a given vertex.
+  function tracePolygonPath(ctx, points, radii) {
+    const n = points.length;
     ctx.beginPath();
-    ctx.moveTo(points[0].x, points[0].y);
-    for (let i = 1; i < points.length; i++) {
-      ctx.lineTo(points[i].x, points[i].y);
+    for (let i = 0; i < n; i++) {
+      const prev = points[(i - 1 + n) % n];
+      const curr = points[i];
+      const next = points[(i + 1) % n];
+      const wanted = Array.isArray(radii) ? radii[i] : radii;
+
+      const d1 = Math.hypot(curr.x - prev.x, curr.y - prev.y);
+      const d2 = Math.hypot(next.x - curr.x, next.y - curr.y);
+      // Clamp so a corner's radius never eats past the midpoint of
+      // either adjacent edge (avoids overlapping arcs on short sides).
+      const r = Math.max(0, Math.min(wanted, d1 / 2, d2 / 2));
+
+      const startX = curr.x + (prev.x - curr.x) / d1 * r;
+      const startY = curr.y + (prev.y - curr.y) / d1 * r;
+
+      if (i === 0) ctx.moveTo(startX, startY);
+      else ctx.lineTo(startX, startY);
+
+      ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
     }
     ctx.closePath();
+  }
+
+  let currentPoints = [];
+
+  function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const maxRadius = Number(radiusInput.value);
+    const radii = currentPoints.map(p => p.radiusFactor * maxRadius);
+
+    tracePolygonPath(ctx, currentPoints, radii);
 
     ctx.fillStyle = 'rgba(80, 160, 255, 0.25)';
     ctx.fill();
@@ -93,14 +144,26 @@
     ctx.stroke();
 
     ctx.fillStyle = '#ffffff';
-    for (const p of points) {
+    for (const p of currentPoints) {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
       ctx.fill();
     }
   }
 
+  function drawPolygon() {
+    currentPoints = generatePolygon(10);
+    render();
+  }
+
+  const radiusInput = document.getElementById('radius');
+  const radiusValue = document.getElementById('radiusValue');
+
   document.getElementById('regen').addEventListener('click', drawPolygon);
+  radiusInput.addEventListener('input', () => {
+    radiusValue.textContent = radiusInput.value;
+    render();
+  });
 
   drawPolygon();
 </script>
