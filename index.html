@@ -108,6 +108,30 @@
   // offset by hand, start on a point guaranteed to already be on an
   // edge (a midpoint) and let each arcTo figure out its own tangent
   // points; arcTo draws the straight run-up to them automatically.
+  const EPS = 1e-6;
+
+  // Caps a corner's requested radius so its arc's tangent points never
+  // pass the midpoint of either adjacent edge. Since tangent distance
+  // is radius / tan(angle/2), the cap itself depends on the interior
+  // angle at the corner (prev–curr–next) — a plain radius clamp only
+  // works at exactly 90° and lets sharper or wider corners overshoot.
+  function clampCornerRadius(prev, curr, next, wanted) {
+    const v1x = prev.x - curr.x, v1y = prev.y - curr.y;
+    const v2x = next.x - curr.x, v2y = next.y - curr.y;
+    const d1 = Math.hypot(v1x, v1y);
+    const d2 = Math.hypot(v2x, v2y);
+    let r = Math.max(0, wanted);
+    if (d1 <= EPS || d2 <= EPS) return 0;
+
+    const cosA = Math.min(1, Math.max(-1, (v1x * v2x + v1y * v2y) / (d1 * d2)));
+    if (cosA <= -1 + EPS) return r; // ~180°: virtually no bend, no angle-based cap needed
+
+    const sinA = Math.abs(v1x * v2y - v1y * v2x) / (d1 * d2);
+    const tanHalfAngle = sinA / (1 + cosA);
+    const maxTangentDist = Math.min(d1, d2) / 2;
+    return Math.min(r, tanHalfAngle * maxTangentDist);
+  }
+
   function tracePolygonPath(ctx, points, radii) {
     const n = points.length;
     const startX = (points[n - 1].x + points[0].x) / 2;
@@ -121,12 +145,7 @@
       const curr = points[i];
       const next = points[(i + 1) % n];
       const wanted = Array.isArray(radii) ? radii[i] : radii;
-
-      const d1 = Math.hypot(curr.x - prev.x, curr.y - prev.y);
-      const d2 = Math.hypot(next.x - curr.x, next.y - curr.y);
-      // Clamp so a corner's radius never eats past the midpoint of
-      // either adjacent edge (avoids overlapping arcs on short sides).
-      const r = Math.max(0, Math.min(wanted, d1 / 2, d2 / 2));
+      const r = clampCornerRadius(prev, curr, next, wanted);
 
       ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
     }
