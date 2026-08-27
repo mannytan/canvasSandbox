@@ -100,9 +100,22 @@
   // or an array with one radius per vertex (radii[i] rounds points[i]).
   // Built on ctx.arcTo, which draws an arc tangent to the incoming and
   // outgoing edges at a given vertex.
+  //
+  // arcTo needs the path's current point to sit exactly at the arc's
+  // true tangent distance from the corner — and that distance is
+  // radius / tan(interior angle / 2), not the radius itself (they only
+  // match at a 90° corner). Rather than compute that angle-dependent
+  // offset by hand, start on a point guaranteed to already be on an
+  // edge (a midpoint) and let each arcTo figure out its own tangent
+  // points; arcTo draws the straight run-up to them automatically.
   function tracePolygonPath(ctx, points, radii) {
     const n = points.length;
+    const startX = (points[n - 1].x + points[0].x) / 2;
+    const startY = (points[n - 1].y + points[0].y) / 2;
+
     ctx.beginPath();
+    ctx.moveTo(startX, startY);
+
     for (let i = 0; i < n; i++) {
       const prev = points[(i - 1 + n) % n];
       const curr = points[i];
@@ -115,14 +128,10 @@
       // either adjacent edge (avoids overlapping arcs on short sides).
       const r = Math.max(0, Math.min(wanted, d1 / 2, d2 / 2));
 
-      const startX = curr.x + (prev.x - curr.x) / d1 * r;
-      const startY = curr.y + (prev.y - curr.y) / d1 * r;
-
-      if (i === 0) ctx.moveTo(startX, startY);
-      else ctx.lineTo(startX, startY);
-
       ctx.arcTo(curr.x, curr.y, next.x, next.y, r);
     }
+
+    ctx.lineTo(startX, startY);
     ctx.closePath();
   }
 
