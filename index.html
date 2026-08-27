@@ -167,9 +167,10 @@
 
   // Dragging vertices: hit-test against currentPoints, then move
   // whichever one is grabbed and re-render so the arcs update live.
-  // The dragged point is tracked by object reference (not array index)
-  // because every move re-sorts by angle around the centroid, keeping
-  // the polygon simple (non-crossing) as points cross each other.
+  // Connectivity (array order) is fixed once dragging starts, so a
+  // vertex always stays joined to the same two neighbors — dragging it
+  // across an edge will visibly self-intersect rather than silently
+  // reassigning which points it connects to.
   const HIT_RADIUS = 14;
   let draggingPoint = null;
 
@@ -180,15 +181,6 @@
 
   function findPointAt(pos) {
     return currentPoints.find(p => Math.hypot(p.x - pos.x, p.y - pos.y) <= HIT_RADIUS) || null;
-  }
-
-  function resortByAngle() {
-    const n = currentPoints.length;
-    const cx = currentPoints.reduce((sum, p) => sum + p.x, 0) / n;
-    const cy = currentPoints.reduce((sum, p) => sum + p.y, 0) / n;
-    currentPoints.sort((a, b) => {
-      return Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx);
-    });
   }
 
   canvas.addEventListener('pointerdown', (evt) => {
@@ -205,7 +197,6 @@
     if (draggingPoint) {
       draggingPoint.x = Math.min(Math.max(pos.x, 0), canvas.width);
       draggingPoint.y = Math.min(Math.max(pos.y, 0), canvas.height);
-      resortByAngle();
       render();
     } else {
       canvas.style.cursor = findPointAt(pos) ? 'grab' : 'default';
