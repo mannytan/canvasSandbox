@@ -128,16 +128,16 @@
 
   const EPS = 1e-6;
 
-  // The largest radius that still fits at this corner: the arc's tangent
-  // points would otherwise pass the midpoint of an adjacent edge. Since
-  // tangent distance is radius / tan(angle/2), that cap depends on the
-  // interior angle at the corner (prev–curr–next), not just edge length —
-  // a plain "half the shorter edge" limit only holds at exactly 90° and
-  // lets sharper or wider corners overshoot.
+  // The largest radius that still fits at this corner, measured against
+  // the incoming edge (prev → curr) only: the arc's tangent point on
+  // that edge would otherwise pass its midpoint. Since tangent distance
+  // is radius / tan(angle/2), that cap depends on the interior angle at
+  // the corner (prev–curr–next) as well as the previous edge's own
+  // length — a plain "half the edge" limit only holds at exactly 90°.
   function maxCornerRadius(prev, curr, next) {
     const v1x = prev.x - curr.x, v1y = prev.y - curr.y;
     const v2x = next.x - curr.x, v2y = next.y - curr.y;
-    const d1 = Math.hypot(v1x, v1y);
+    const d1 = Math.hypot(v1x, v1y); // previous edge length
     const d2 = Math.hypot(v2x, v2y);
     if (d1 <= EPS || d2 <= EPS) return 0;
 
@@ -146,7 +146,7 @@
 
     const sinA = Math.abs(v1x * v2y - v1y * v2x) / (d1 * d2);
     const tanHalfAngle = sinA / (1 + cosA);
-    const maxTangentDist = Math.min(d1, d2) / 2;
+    const maxTangentDist = d1 / 2;
     return tanHalfAngle * maxTangentDist;
   }
 
